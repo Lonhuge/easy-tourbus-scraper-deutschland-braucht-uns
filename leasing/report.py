@@ -151,6 +151,17 @@ tbody tr:hover{background:var(--surface-2)}
 .tag.warn{background:var(--warn-soft);color:var(--warn);font-weight:600}
 .cost{font-size:.79rem;color:var(--muted);line-height:1.5}
 .cost b{color:var(--ink);font-weight:600}
+/* Umschalter Leasing/Kauf */
+.switch{display:inline-flex;gap:.2rem;padding:.25rem;background:var(--surface-2);
+ border:1px solid var(--line);border-radius:999px;align-self:flex-start}
+.switch button{appearance:none;border:0;background:transparent;color:var(--muted);
+ font:inherit;font-size:.88rem;font-weight:600;padding:.45rem 1.15rem;border-radius:999px;
+ cursor:pointer;transition:background .15s,color .15s}
+.switch button:hover{color:var(--ink)}
+.switch button.on{background:var(--surface);color:var(--accent);
+ box-shadow:0 1px 2px rgba(0,0,0,.08)}
+section{display:flex;flex-direction:column;gap:1.2rem}
+section[hidden]{display:none}
 .note{color:var(--muted);font-size:.82rem;line-height:1.75;max-width:78ch}
 .note b{color:var(--ink)}
 .legend{display:flex;flex-wrap:wrap;gap:1.1rem;font-size:.78rem;color:var(--muted);
@@ -162,89 +173,132 @@ a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 """
 
-
-def _bar(offer: Offer, scale: float) -> str:
-    """Balken: grauer Teil = beworbene Rate, blauer Teil = Einmalkosten-Aufschlag."""
-    effective = offer.effective_monthly
-    if not effective or not scale:
+def _bar(value: Optional[float], scale: float, base_share: float = 100.0) -> str:
+    """Balken: grauer Teil = Grundkosten, blauer Teil = Aufschlag."""
+    if not value or not scale:
         return ""
-    width = max(6.0, min(100.0, effective / scale * 100.0))
-    base_share = (offer.monthly_rate or 0) / effective * 100.0
+    width = max(6.0, min(100.0, value / scale * 100.0))
+    base = max(0.0, min(100.0, base_share))
     return ('<div class="bar" style="width:%.1f%%">'
             '<i class="base" style="width:%.1f%%"></i>'
             '<i class="add" style="width:%.1f%%"></i></div>'
-            % (width, base_share, max(0.0, 100.0 - base_share)))
+            % (width, base, 100.0 - base))
 
 
-def write_html(offers: List[Offer], path: str, title: str, subtitle: str) -> None:
+def _tags(offer: Offer) -> str:
+    tags = []
+    if offer.seats:
+        tags.append('<span class="tag">%s Sitze</span>' % offer.seats)
+    if offer.availability:
+        tags.append('<span class="tag">%s</span>' % html.escape(
+            offer.availability.replace("Verfügbar: ", "")))
+    if not offer.costs_complete:
+        tags.append('<span class="tag warn">Überführung k.&nbsp;A.</span>')
+    for condition in offer.special_conditions:
+        tags.append('<span class="tag warn">%s</span>' % html.escape(condition))
+    return "".join(tags)
+
+
+def _car_cell(offer: Offer) -> str:
+    return ('<td><div class="car"><a href="%s" target="_blank" rel="noopener">%s</a></div>'
+            '<div class="desc">%s</div><div class="tags">%s</div></td>'
+            % (html.escape(offer.url),
+               html.escape(("%s %s" % (offer.make, offer.model)).strip()),
+               html.escape(offer.headline[:90]),
+               _tags(offer)))
+
+
+def _cost_parts(offer: Offer) -> str:
+    parts = []
+    if offer.transfer_costs:
+        parts.append("Überführung <b>%s</b>" % _euro(offer.transfer_costs))
+    if offer.registration_costs:
+        parts.append("Zulassung <b>%s</b>" % _euro(offer.registration_costs))
+    if offer.extra_costs:
+        parts.append("Zuzahlung <b>%s</b>" % _euro(offer.extra_costs))
+    if offer.estimated_transfer:
+        parts.append("Überführung geschätzt <b>%s</b>" % _euro(offer.estimated_transfer))
+    if not parts:
+        parts.append("keine Angabe" if not offer.costs_complete else "keine")
+    return " · ".join(parts)
+
+
+def _leasing_rows(ranked: List[Offer]) -> str:
+    scale = max((o.effective_monthly or 0) for o in ranked) if ranked else 0
+    rows = []
+    for index, offer in enumerate(ranked, 1):
+        marker = "" if offer.costs_complete else "*"
+        net = ""
+        if not offer.is_private_only and offer.monthly_net_rate:
+            net = " · netto %s" % _euro(offer.monthly_net_rate)
+        share = ((offer.monthly_rate or 0) / offer.effective_monthly * 100.0
+                 if offer.effective_monthly else 100.0)
+        extra = ('<span class="num">+%s/Mon.</span>'
+                 % _euro(offer.upfront_costs / offer.duration)
+                 if offer.upfront_costs and offer.duration else "")
+        rows.append(
+            '<tr><td class="rank num">%s</td>%s'
+            '<td class="r"><div class="big num">%s%s</div>'
+            '<div class="sub-rate num">Rate %s</div>%s</td>'
+            '<td class="r num">%s%s</td>'
+            '<td class="cost">%s %s</td>'
+            '<td class="num">%s Mon.<br><span class="desc">%s</span></td>'
+            '<td class="r num">%s</td></tr>'
+            % (index, _car_cell(offer),
+               _euro(offer.effective_monthly), marker, _euro(offer.monthly_rate),
+               _bar(offer.effective_monthly, scale, share),
+               _euro(offer.yearly_cost), marker,
+               _cost_parts(offer), extra,
+               offer.duration or "-",
+               html.escape(offer.group_label) + net,
+               _euro(offer.total_cost)))
+    return "".join(rows)
+
+
+def _buy_rows(ranked: List[Offer], months: int, residual_pct: float) -> str:
+    priced = [o for o in ranked if o.purchase_price]
+    priced.sort(key=lambda o: o.purchase_monthly(months, residual_pct) or float("inf"))
+    scale = max((o.purchase_monthly(months, residual_pct) or 0) for o in priced) if priced else 0
+    rows = []
+    for index, offer in enumerate(priced, 1):
+        monthly = offer.purchase_monthly(months, residual_pct)
+        residual = (offer.purchase_price or 0) * residual_pct
+        gap = offer.discount_pct
+        saving = ('<div class="desc">%s unter UVP (%s)</div>'
+                  % (_euro(offer.discount), ("%.0f %%" % gap) if gap else "-")
+                  if offer.discount and offer.discount > 0 else "")
+        # Balken: Anteil reiner Wertverlust vs. Einmalkosten
+        loss = (offer.purchase_price or 0) - residual
+        share = (loss / (loss + offer.upfront_costs) * 100.0
+                 if (loss + offer.upfront_costs) else 100.0)
+        rows.append(
+            '<tr><td class="rank num">%s</td>%s'
+            '<td class="r"><div class="big num">%s</div>'
+            '<div class="sub-rate num">UVP %s</div>%s</td>'
+            '<td class="r num">%s</td>'
+            '<td class="r num">%s<div class="desc">Restwert</div></td>'
+            '<td class="cost">%s</td>'
+            '<td class="r num">%s</td></tr>'
+            % (index, _car_cell(offer),
+               _euro(offer.purchase_price), _euro(offer.gross_list_price), saving,
+               _euro(monthly),
+               _euro(residual),
+               _cost_parts(offer),
+               _euro((offer.purchase_price or 0) + offer.upfront_costs)))
+    return "".join(rows)
+
+
+def write_html(offers: List[Offer], path: str, title: str, subtitle: str,
+               hold_months: int = 60, residual_pct: float = 0.40) -> None:
     ranked = sort_offers(offers)
     cheapest = ranked[0].effective_monthly if ranked else None
     private_ok = sum(1 for o in ranked if o.available_to_private)
     incomplete = sum(1 for o in ranked if not o.costs_complete)
-    scale = max((o.effective_monthly or 0) for o in ranked) if ranked else 0
 
-    rows = []
-    for index, offer in enumerate(ranked, 1):
-        tags = []
-        if offer.seats:
-            tags.append('<span class="tag">%s Sitze</span>' % offer.seats)
-        if offer.availability:
-            tags.append('<span class="tag">%s</span>' % html.escape(
-                offer.availability.replace("Verfügbar: ", "")))
-        if not offer.costs_complete:
-            tags.append('<span class="tag warn">Überführung k.&nbsp;A.</span>')
-        for condition in offer.special_conditions:
-            tags.append('<span class="tag warn">%s</span>' % html.escape(condition))
-
-        # Einmalkosten aufschluesseln, damit die Herkunft des Aufschlags sichtbar ist
-        parts = []
-        if offer.transfer_costs:
-            parts.append("Überführung <b>%s</b>" % _euro(offer.transfer_costs))
-        if offer.registration_costs:
-            parts.append("Zulassung <b>%s</b>" % _euro(offer.registration_costs))
-        if offer.extra_costs:
-            parts.append("Zuzahlung <b>%s</b>" % _euro(offer.extra_costs))
-        if offer.estimated_transfer:
-            parts.append("Überführung geschätzt <b>%s</b>" % _euro(offer.estimated_transfer))
-        if not parts:
-            parts.append("keine Angabe" if not offer.costs_complete else "keine")
-        if offer.upfront_costs and offer.duration:
-            parts.append('<span class="num">+%s/Mon.</span>'
-                         % _euro(offer.upfront_costs / offer.duration))
-
-        marker = "" if offer.costs_complete else "*"
-        net = ""
-        if not offer.is_private_only and offer.monthly_net_rate:
-            net = "netto %s" % _euro(offer.monthly_net_rate)
-
-        rows.append(
-            '<tr>'
-            '<td class="rank num">%s</td>'
-            '<td><div class="car"><a href="%s" target="_blank" rel="noopener">%s</a></div>'
-            '<div class="desc">%s</div><div class="tags">%s</div></td>'
-            '<td class="r"><div class="big num">%s%s</div>'
-            '<div class="sub-rate num">Rate %s</div>%s</td>'
-            '<td class="r num">%s%s</td>'
-            '<td class="cost">%s</td>'
-            '<td class="num">%s Mon.<br><span class="desc">%s</span></td>'
-            '<td class="r num">%s</td>'
-            '</tr>'
-            % (
-                index,
-                html.escape(offer.url),
-                html.escape(("%s %s" % (offer.make, offer.model)).strip()),
-                html.escape(offer.headline[:90]),
-                "".join(tags),
-                _euro(offer.effective_monthly), marker,
-                _euro(offer.monthly_rate),
-                _bar(offer, scale),
-                _euro(offer.yearly_cost), marker,
-                " · ".join(parts),
-                offer.duration or "-",
-                html.escape(offer.group_label + (" · " + net if net else "")),
-                _euro(offer.total_cost),
-            )
-        )
+    priced = [o for o in ranked if o.purchase_price]
+    buy_cheapest = min((o.purchase_monthly(hold_months, residual_pct) or float("inf"))
+                       for o in priced) if priced else None
+    buy_price_min = min((o.purchase_price or 0) for o in priced) if priced else None
 
     footnote = ""
     if incomplete:
@@ -261,6 +315,15 @@ def write_html(offers: List[Offer], path: str, title: str, subtitle: str) -> Non
   <h1>%s</h1>
   <p class="sub">%s</p>
 </div>
+
+<div class="switch" role="tablist" aria-label="Leasing oder Kauf">
+  <button role="tab" id="tab-lease" aria-controls="panel-lease" aria-selected="true"
+   class="on" data-panel="lease">Leasing</button>
+  <button role="tab" id="tab-buy" aria-controls="panel-buy" aria-selected="false"
+   data-panel="buy">Kaufen</button>
+</div>
+
+<section id="panel-lease" role="tabpanel" aria-labelledby="tab-lease">
 <div class="stats">
   <div class="stat"><b>%s</b><span>Angebote</span></div>
   <div class="stat"><b>%s</b><span>ab / Monat</span></div>
@@ -273,36 +336,84 @@ def write_html(offers: List[Offer], path: str, title: str, subtitle: str) -> Non
   <span>Balkenlänge = tatsächliche Monatskosten im Vergleich</span>
 </div>
 <div class="scroll"><table>
-<thead><tr>
-<th>#</th><th>Fahrzeug</th><th class="r">Pro Monat</th><th class="r">Pro Jahr</th>
-<th>Einmalkosten</th><th>Vertrag</th><th class="r">Gesamt</th>
-</tr></thead>
+<thead><tr><th>#</th><th>Fahrzeug</th><th class="r">Pro Monat</th><th class="r">Pro Jahr</th>
+<th>Einmalkosten</th><th>Vertrag</th><th class="r">Gesamt</th></tr></thead>
 <tbody>%s</tbody></table></div>
 <p class="note">
 <b>Pro Monat</b> = beworbene Rate + (Überführung + Zulassung + Zuzahlungen) ÷ Laufzeit.
 Nur so sind Angebote mit niedriger Rate und hoher Einmalzahlung fair vergleichbar.
-<b>Pro Jahr</b> = Pro Monat × 12; die Einmalkosten sind dabei über die gesamte Laufzeit
+<b>Pro Jahr</b> = Pro Monat × 12; die Einmalkosten sind über die gesamte Laufzeit
 verteilt, nicht dem ersten Jahr zugeschlagen. <b>Gesamt</b> ist die Summe über die volle
 Laufzeit — bei 48 Monaten naturgemäß niedriger als bei 60, Vergleichsmaßstab sind
 deshalb die Monatskosten.%s<br>
-Alle Raten <b>brutto inkl. MwSt.</b>; Gewerbeangebote werden von den Händlern meist
-netto beworben, die Nettorate steht daneben. <b>Nur Gewerbekunden</b> heißt: als
-Privatperson nicht buchbar. Bernstein markierte Angaben sind <b>Auflagen</b>
-(z.&nbsp;B. Inzahlungnahme) — ohne deren Erfüllung gilt der Preis nicht.
-Nicht enthalten sind Anzahlung, Versicherung, Wartung, Reifen und Sprit.
-Angebote ändern sich täglich; verbindlich ist immer der Händler.
+Alle Raten <b>brutto inkl. MwSt.</b>; Gewerbeangebote werden meist netto beworben, die
+Nettorate steht daneben. <b>Nur Gewerbekunden</b> heißt: als Privatperson nicht buchbar.
+Bernstein markierte Angaben sind <b>Auflagen</b> (z.&nbsp;B. Inzahlungnahme).
+Nicht enthalten sind Versicherung, Wartung, Reifen und Sprit.
 </p>
-</div>""" % (
-        html.escape(title),
-        _CSS,
-        html.escape(title),
-        html.escape(subtitle),
-        len(ranked),
-        _euro(cheapest),
-        _euro(cheapest * 12 if cheapest is not None else None),
-        private_ok,
-        "".join(rows) or '<tr><td colspan="7">Keine Angebote gefunden.</td></tr>',
+</section>
+
+<section id="panel-buy" role="tabpanel" aria-labelledby="tab-buy" hidden>
+<div class="stats">
+  <div class="stat"><b>%s</b><span>mit Kaufpreis</span></div>
+  <div class="stat"><b>%s</b><span>ab Kaufpreis</span></div>
+  <div class="stat"><b>%s</b><span>ab Wertverlust / Monat</span></div>
+  <div class="stat"><b>%s Mon.</b><span>angenommene Haltedauer</span></div>
+</div>
+<div class="legend">
+  <span class="key"><i style="background:var(--bar-base)"></i> Wertverlust</span>
+  <span class="key"><i style="background:var(--accent)"></i> Einmalkosten</span>
+  <span>Restwert angenommen mit %s&nbsp;%% des Kaufpreises nach %s Monaten</span>
+</div>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Fahrzeug</th><th class="r">Kaufpreis</th>
+<th class="r">Wertverlust/Mon.</th><th class="r">Restwert</th>
+<th>Einmalkosten</th><th class="r">Gesamt sofort</th></tr></thead>
+<tbody>%s</tbody></table></div>
+<p class="note">
+<b>Woher die Kaufpreise stammen:</b> dieselben Inserate. Händler nennen zu jedem
+Leasingangebot den Brutto-Kaufpreis desselben Fahrzeugs — es sind also
+<b>Neu- und Lagerwagen</b>, keine Gebrauchtwagenangebote.<br>
+<b>Wertverlust/Mon.</b> = (Kaufpreis + Einmalkosten − erwarteter Restwert) ÷ Haltedauer.
+Das ist die Größe, die dem Leasingaufwand gegenübersteht. <b>Nicht</b> enthalten sind
+Finanzierungszinsen und die Kapitalbindung — wer bar kauft, bindet den vollen Betrag.
+<b>Gesamt sofort</b> ist der Betrag, der bei Übergabe fällig wird.<br>
+Der <b>Restwert ist eine Annahme</b>, keine Prognose: %s&nbsp;%% nach %s Monaten. Der
+tatsächliche Wiederverkaufswert hängt an Laufleistung, Zustand und Marktlage. Bei
+25.000&nbsp;km/Jahr — also %s&nbsp;km über die Haltedauer — liegt er eher am unteren Rand.
+</p>
+</section>
+</div>
+<script>
+(function(){
+  var tabs=[].slice.call(document.querySelectorAll('.switch button'));
+  function show(name){
+    tabs.forEach(function(t){
+      var on=t.dataset.panel===name;
+      t.classList.toggle('on',on);
+      t.setAttribute('aria-selected',on?'true':'false');
+    });
+    document.getElementById('panel-lease').hidden=(name!=='lease');
+    document.getElementById('panel-buy').hidden=(name!=='buy');
+    try{location.hash=name}catch(e){}
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.panel)})});
+  if(location.hash==='#buy')show('buy');
+})();
+</script>""" % (
+        html.escape(title), _CSS, html.escape(title), html.escape(subtitle),
+        len(ranked), _euro(cheapest),
+        _euro(cheapest * 12 if cheapest is not None else None), private_ok,
+        _leasing_rows(ranked) or '<tr><td colspan="7">Keine Angebote gefunden.</td></tr>',
         footnote,
+        len(priced), _euro(buy_price_min),
+        _euro(buy_cheapest if buy_cheapest not in (None, float("inf")) else None),
+        hold_months,
+        "%.0f" % (residual_pct * 100), hold_months,
+        _buy_rows(ranked, hold_months, residual_pct)
+        or '<tr><td colspan="7">Keine Kaufpreise verfügbar.</td></tr>',
+        "%.0f" % (residual_pct * 100), hold_months,
+        "{:,}".format(int(hold_months / 12 * 25000)).replace(",", "."),
     )
 
     with open(path, "w", encoding="utf-8") as handle:

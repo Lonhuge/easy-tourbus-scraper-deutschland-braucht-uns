@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top", type=int, default=20, help="Anzahl Zeilen in der Konsole")
     parser.add_argument("--pro-modell", type=int, default=0, metavar="N",
                         help="Je Modell hoechstens N Angebote zeigen (0 = alle)")
+    parser.add_argument("--haltedauer", type=int, default=60, metavar="MONATE",
+                        help="Angenommene Haltedauer beim Kauf (Standard: 60)")
+    parser.add_argument("--restwert", type=int, default=40, metavar="PROZENT",
+                        help="Angenommener Restwert beim Kauf in %% des Kaufpreises "
+                             "(Standard: 40)")
     parser.add_argument("--schaetze-ueberfuehrung", action="store_true",
                         help="Fehlende Ueberfuehrungskosten mit dem Median der "
                              "uebrigen Angebote ansetzen statt mit 0")
@@ -124,6 +129,27 @@ def main() -> int:
 
     print_table(shown, limit=args.top)
 
+    priced = [o for o in shown if o.purchase_price]
+    if priced:
+        residual = args.restwert / 100.0
+        priced.sort(key=lambda o: o.purchase_monthly(args.haltedauer, residual) or 1e9)
+        print("\nKAUF — dieselben Fahrzeuge, Brutto-Kaufpreis der Händler")
+        print("(Wertverlust = (Kaufpreis + Einmalkosten − %s%% Restwert) ÷ %s Monate)"
+              % (args.restwert, args.haltedauer))
+        print("-" * 112)
+        print("%-3s %-13s %-14s %-13s %s" % (
+            "#", "KAUFPREIS", "WERTVERL./MON", "UNTER UVP", "FAHRZEUG"))
+        for index, offer in enumerate(priced[: args.top], 1):
+            gap = offer.discount_pct
+            print("%-3s %-13s %-14s %-13s %s" % (
+                index,
+                "%.0f EUR" % offer.purchase_price,
+                "%.0f EUR" % (offer.purchase_monthly(args.haltedauer, residual) or 0),
+                ("%.0f %%" % gap) if gap and gap > 0 else "-",
+                ("%s %s" % (offer.make, offer.model)).strip()[:40],
+            ))
+        print("-" * 112)
+
     write_csv(offers, args.csv)
     write_html(
         shown,
@@ -132,6 +158,8 @@ def main() -> int:
         subtitle="%s Angebote mit %s km/Jahr von leasingmarkt.de, sortiert nach den "
                  "tatsächlichen Monatskosten statt nach der beworbenen Rate. Stand: %s"
                  % (len(shown), "{:,}".format(args.km).replace(",", "."), timestamp()),
+        hold_months=args.haltedauer,
+        residual_pct=args.restwert / 100.0,
     )
     print("\nGeschrieben: %s und %s" % (args.csv, args.html))
     return 0

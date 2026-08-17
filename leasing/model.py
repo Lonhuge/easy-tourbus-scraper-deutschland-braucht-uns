@@ -31,7 +31,10 @@ CSV_FIELDS = [
     "target_group",
     "availability",
     "car_type",
+    "purchase_price",
     "gross_list_price",
+    "discount",
+    "discount_pct",
     "extra_km_cost",
     "refund_per_km",
     "bank",
@@ -60,7 +63,8 @@ class Offer:
     target_group: str = ""
     availability: str = ""
     car_type: str = ""
-    gross_list_price: Optional[float] = None
+    gross_list_price: Optional[float] = None   # UVP / Bruttolistenpreis
+    purchase_price: Optional[float] = None     # Brutto-Kaufpreis beim Händler
 
     # Konditionen der gewaehlten km-Variante
     monthly_rate: Optional[float] = None       # brutto, inkl. MwSt.
@@ -135,6 +139,36 @@ class Offer:
         monthly = self.effective_monthly
         return None if monthly is None else monthly * 12
 
+    # --- Kaufseite -------------------------------------------------------
+    # Die Kaufpreise stammen aus denselben Inseraten: Haendler nennen zu jedem
+    # Leasingangebot den Brutto-Kaufpreis desselben Fahrzeugs.
+
+    @property
+    def discount(self) -> Optional[float]:
+        """Nachlass auf die UVP in Euro."""
+        if self.purchase_price is None or self.gross_list_price is None:
+            return None
+        return self.gross_list_price - self.purchase_price
+
+    @property
+    def discount_pct(self) -> Optional[float]:
+        gap = self.discount
+        if gap is None or not self.gross_list_price:
+            return None
+        return gap / self.gross_list_price * 100.0
+
+    def purchase_monthly(self, months: int, residual_pct: float) -> Optional[float]:
+        """Monatlicher Wertverlust beim Kauf ueber die Haltedauer.
+
+        (Kaufpreis + Einmalkosten - erwarteter Restwert) / Monate. Kapitalbindung
+        bzw. Finanzierungszinsen bleiben aussen vor - das ist der reine
+        Wertverlust und damit die Groesse, die dem Leasingaufwand gegenuebersteht.
+        """
+        if self.purchase_price is None or not months:
+            return None
+        residual = self.purchase_price * residual_pct
+        return (self.purchase_price + self.upfront_costs - residual) / months
+
     @property
     def is_commercial_only(self) -> bool:
         return "nur gewerbe" in self.target_group.lower()
@@ -162,6 +196,8 @@ class Offer:
         data["yearly_cost"] = _round(self.yearly_cost)
         data["total_cost"] = _round(self.total_cost)
         data["costs_complete"] = "ja" if self.costs_complete else "nein"
+        data["discount"] = _round(self.discount)
+        data["discount_pct"] = _round(self.discount_pct)
         data["special_conditions"] = " | ".join(self.special_conditions)
         data["url"] = self.url
         return {key: data.get(key, "") for key in CSV_FIELDS}

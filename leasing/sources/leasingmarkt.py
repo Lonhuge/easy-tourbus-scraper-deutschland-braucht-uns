@@ -77,7 +77,11 @@ def _to_offer(listing: Dict, variant: Dict) -> Offer:
         target_group=listing.get("targetGroup") or "",
         availability=listing.get("availability") or "",
         car_type=condition.get("carType") or "",
+        # Auf Listing-Ebene sind die Felder korrekt benannt (auf der Detailseite
+        # sind sie im "prices"-Objekt vertauscht) - hier gegen die sichtbare
+        # Preisuebersicht verifiziert: grossList = UVP, purchase = Kaufpreis.
         gross_list_price=listing.get("grossListPriceInEUR"),
+        purchase_price=listing.get("purchasePriceInEUR"),
         monthly_rate=variant.get("monthlyRate"),
         monthly_net_rate=variant.get("monthlyNetRate"),
         duration=variant.get("duration"),
