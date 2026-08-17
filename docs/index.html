@@ -1,0 +1,108 @@
+<title>9-Sitzer Leasingvergleich</title>
+<style>
+:root{
+ --bg:#f4f6f9; --surface:#fff; --surface-2:#eef1f6; --ink:#111820; --muted:#5c6878;
+ --line:#dde3ec; --accent:#0b4f9e; --accent-soft:#dbe7f6; --warn:#a86a00;
+ --warn-soft:#f7ecd8; --bar-base:#b9c6d8;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+ --bg:#0d1218; --surface:#151d27; --surface-2:#1c2530; --ink:#e6ecf4; --muted:#8d9aab;
+ --line:#26313e; --accent:#69a9f5; --accent-soft:#16283f; --warn:#e0a63a;
+ --warn-soft:#33280f; --bar-base:#33404f;
+}}
+:root[data-theme=dark]{
+ --bg:#0d1218; --surface:#151d27; --surface-2:#1c2530; --ink:#e6ecf4; --muted:#8d9aab;
+ --line:#26313e; --accent:#69a9f5; --accent-soft:#16283f; --warn:#e0a63a;
+ --warn-soft:#33280f; --bar-base:#33404f;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:2.4rem 1.2rem 4rem;background:var(--bg);color:var(--ink);
+ font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;
+ -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}
+.head{display:flex;flex-direction:column;gap:.35rem}
+h1{font-size:clamp(1.5rem,3.2vw,2rem);margin:0;letter-spacing:-.025em;text-wrap:balance}
+.sub{color:var(--muted);margin:0;font-size:.92rem;max-width:65ch}
+.num{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+ font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+ padding:.85rem 1rem;display:flex;flex-direction:column;gap:.15rem}
+.stat b{font-size:1.45rem;letter-spacing:-.02em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+ font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:.9rem}
+thead th{position:sticky;top:0;background:var(--surface-2);text-align:left;
+ padding:.65rem .85rem;border-bottom:1px solid var(--line);color:var(--muted);
+ font-size:.71rem;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:.8rem .85rem;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+.rank{color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+.car{font-weight:600;letter-spacing:-.01em}
+.car a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line)}
+.car a:hover,.car a:focus-visible{border-bottom-color:var(--accent);color:var(--accent)}
+.desc{color:var(--muted);font-size:.79rem;margin-top:.15rem;line-height:1.4}
+.big{font-weight:700;font-size:1.02rem;color:var(--accent)}
+.sub-rate{color:var(--muted);font-size:.78rem;margin-top:.1rem}
+/* Balken: Anteil beworbene Rate vs. Einmalkosten-Aufschlag */
+.bar{height:5px;border-radius:3px;background:var(--surface-2);margin-top:.4rem;
+ overflow:hidden;display:flex;min-width:90px}
+.bar i{display:block;height:100%}
+.bar .base{background:var(--bar-base)}
+.bar .add{background:var(--accent)}
+.tags{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.4rem}
+.tag{font-size:.69rem;padding:.14rem .45rem;border-radius:999px;
+ background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.tag.warn{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.cost{font-size:.79rem;color:var(--muted);line-height:1.5}
+.cost b{color:var(--ink);font-weight:600}
+.note{color:var(--muted);font-size:.82rem;line-height:1.75;max-width:78ch}
+.note b{color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:1.1rem;font-size:.78rem;color:var(--muted);
+ align-items:center}
+.key{display:inline-flex;align-items:center;gap:.4rem}
+.key i{width:14px;height:5px;border-radius:3px;display:block}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+<div class="head">
+  <h1>9-Sitzer Leasingvergleich</h1>
+  <p class="sub">13 Angebote mit 25.000 km/Jahr von leasingmarkt.de, sortiert nach den tatsächlichen Monatskosten statt nach der beworbenen Rate. Stand: 17.08.2026 12:23</p>
+</div>
+<div class="stats">
+  <div class="stat"><b>13</b><span>Angebote</span></div>
+  <div class="stat"><b>394 EUR</b><span>ab / Monat</span></div>
+  <div class="stat"><b>4.734 EUR</b><span>ab / Jahr</span></div>
+  <div class="stat"><b>7</b><span>für Privat buchbar</span></div>
+</div>
+<div class="legend">
+  <span class="key"><i style="background:var(--bar-base)"></i> beworbene Rate</span>
+  <span class="key"><i style="background:var(--accent)"></i> Aufschlag durch Einmalkosten</span>
+  <span>Balkenlänge = tatsächliche Monatskosten im Vergleich</span>
+</div>
+<div class="scroll"><table>
+<thead><tr>
+<th>#</th><th>Fahrzeug</th><th class="r">Pro Monat</th><th class="r">Pro Jahr</th>
+<th>Einmalkosten</th><th>Vertrag</th><th class="r">Gesamt</th>
+</tr></thead>
+<tbody><tr><td class="rank num">1</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/ford-transit/13091345?adVariant=35537423" target="_blank" rel="noopener">Ford Transit</a></div><div class="desc">Ford Transit Kombi L2H2 ‼️SOFORT VERFÜGBAR ‼️</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">394 EUR</div><div class="sub-rate num">Rate 356 EUR</div><div class="bar" style="width:43.9%"><i class="base" style="width:90.3%"></i><i class="add" style="width:9.7%"></i></div></td><td class="r num">4.734 EUR</td><td class="cost">Überführung <b>2.100 EUR</b> · Zulassung <b>190 EUR</b> · <span class="num">+38 EUR/Mon.</span></td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 299 EUR</span></td><td class="r num">23.670 EUR</td></tr><tr><td class="rank num">2</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/citroen-spacetourer/13019575?adVariant=35288294" target="_blank" rel="noopener">Citroën SpaceTourer</a></div><div class="desc">Citroën SpaceTourer XL| PLUS | SOFORT VERFÜGBAR</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span><span class="tag warn">Inzahlungnahme</span></div></td><td class="r"><div class="big num">432 EUR</div><div class="sub-rate num">Rate 404 EUR</div><div class="bar" style="width:48.0%"><i class="base" style="width:93.6%"></i><i class="add" style="width:6.4%"></i></div></td><td class="r num">5.180 EUR</td><td class="cost">Überführung <b>1.660 EUR</b> · <span class="num">+28 EUR/Mon.</span></td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 340 EUR</span></td><td class="r num">25.900 EUR</td></tr><tr><td class="rank num">3</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/ford-transit_custom/12971448?adVariant=35096418" target="_blank" rel="noopener">Ford Transit Custom</a></div><div class="desc">Ford Transit Custom Kombi 9-Sitzer 320L1 🔥Ganzjahresreifen🔥Kamera🔥 Klima hinten🔥</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">438 EUR</div><div class="sub-rate num">Rate 404 EUR</div><div class="bar" style="width:48.8%"><i class="base" style="width:92.2%"></i><i class="add" style="width:7.8%"></i></div></td><td class="r num">5.261 EUR</td><td class="cost">Überführung <b>1.904 EUR</b> · Zulassung <b>145 EUR</b> · <span class="num">+34 EUR/Mon.</span></td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 340 EUR</span></td><td class="r num">26.305 EUR</td></tr><tr><td class="rank num">4</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/nissan-primastar/12815980?adVariant=34526034" target="_blank" rel="noopener">Nissan Primastar</a></div><div class="desc">Nissan Primastar Kombi 9 L1H1 2,8t dCi150 MT TEKNA 🔥Sonderaktion🔥</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">442 EUR</div><div class="sub-rate num">Rate 415 EUR</div><div class="bar" style="width:49.2%"><i class="base" style="width:94.0%"></i><i class="add" style="width:6.0%"></i></div></td><td class="r num">5.305 EUR</td><td class="cost">Überführung <b>1.416 EUR</b> · Zulassung <b>188 EUR</b> · <span class="num">+27 EUR/Mon.</span></td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 349 EUR</span></td><td class="r num">26.523 EUR</td></tr><tr><td class="rank num">5</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/opel-vivaro/12994899?adVariant=35207876" target="_blank" rel="noopener">Opel Vivaro</a></div><div class="desc">Opel Vivaro Kombi 177 AT8 XL 9S KlimaP ConnectP</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">487 EUR</div><div class="sub-rate num">Rate 460 EUR</div><div class="bar" style="width:54.2%"><i class="base" style="width:94.5%"></i><i class="add" style="width:5.5%"></i></div></td><td class="r num">5.844 EUR</td><td class="cost">Überführung <b>1.290 EUR</b> · <span class="num">+27 EUR/Mon.</span></td><td class="num">48 Mon.<br><span class="desc">beide · netto 387 EUR</span></td><td class="r num">23.377 EUR</td></tr><tr><td class="rank num">6</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/ford-tourneo_custom/12924465?adVariant=35442627" target="_blank" rel="noopener">Ford Tourneo Custom</a></div><div class="desc">Ford Tourneo Custom Kombi 320 L2 FWD Trend Automatik 9.Sitzer</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">489 EUR</div><div class="sub-rate num">Rate 454 EUR</div><div class="bar" style="width:54.4%"><i class="base" style="width:92.9%"></i><i class="add" style="width:7.1%"></i></div></td><td class="r num">5.866 EUR</td><td class="cost">Überführung <b>1.892 EUR</b> · Zulassung <b>199 EUR</b> · <span class="num">+35 EUR/Mon.</span></td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 382 EUR</span></td><td class="r num">29.331 EUR</td></tr><tr><td class="rank num">7</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/opel-zafira/13118727?adVariant=35637483" target="_blank" rel="noopener">Opel Zafira</a></div><div class="desc">Opel Zafira AT8 XL Edition 9-S Nav Kam SHZ KlimaP PDC</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">09/2026</span></div></td><td class="r"><div class="big num">541 EUR</div><div class="sub-rate num">Rate 514 EUR</div><div class="bar" style="width:60.2%"><i class="base" style="width:95.0%"></i><i class="add" style="width:5.0%"></i></div></td><td class="r num">6.487 EUR</td><td class="cost">Überführung <b>1.290 EUR</b> · <span class="num">+27 EUR/Mon.</span></td><td class="num">48 Mon.<br><span class="desc">beide · netto 432 EUR</span></td><td class="r num">25.949 EUR</td></tr><tr><td class="rank num">8</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/peugeot-traveller/13072882?adVariant=35472480" target="_blank" rel="noopener">Peugeot Traveller</a></div><div class="desc">Peugeot Traveller L3 Active 9S KlimaP AHK SHZ CarP LED</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">556 EUR</div><div class="sub-rate num">Rate 529 EUR</div><div class="bar" style="width:61.8%"><i class="base" style="width:95.2%"></i><i class="add" style="width:4.8%"></i></div></td><td class="r num">6.668 EUR</td><td class="cost">Überführung <b>1.290 EUR</b> · <span class="num">+27 EUR/Mon.</span></td><td class="num">48 Mon.<br><span class="desc">beide · netto 444 EUR</span></td><td class="r num">26.673 EUR</td></tr><tr><td class="rank num">9</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/volkswagen-caravelle/12617335?adVariant=35283635" target="_blank" rel="noopener">Volkswagen Caravelle</a></div><div class="desc">Volkswagen Caravelle Life 2,0TDI 4MOTION 9SITZER NAVI</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span><span class="tag warn">Überführung k.&nbsp;A.</span></div></td><td class="r"><div class="big num">587 EUR*</div><div class="sub-rate num">Rate 587 EUR</div><div class="bar" style="width:65.3%"><i class="base" style="width:100.0%"></i><i class="add" style="width:0.0%"></i></div></td><td class="r num">7.044 EUR*</td><td class="cost">keine Angabe</td><td class="num">60 Mon.<br><span class="desc">beide · netto 493 EUR</span></td><td class="r num">35.220 EUR</td></tr><tr><td class="rank num">10</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/volkswagen-transporter/12566359?adVariant=33696941" target="_blank" rel="noopener">Volkswagen Transporter</a></div><div class="desc">Volkswagen Transporter 2.0TDi DSG Lang</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span><span class="tag warn">Überführung k.&nbsp;A.</span></div></td><td class="r"><div class="big num">621 EUR*</div><div class="sub-rate num">Rate 621 EUR</div><div class="bar" style="width:69.1%"><i class="base" style="width:100.0%"></i><i class="add" style="width:0.0%"></i></div></td><td class="r num">7.452 EUR*</td><td class="cost">keine Angabe</td><td class="num">60 Mon.<br><span class="desc">beide · netto 522 EUR</span></td><td class="r num">37.260 EUR</td></tr><tr><td class="rank num">11</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/hyundai-staria/13098911?adVariant=35567341" target="_blank" rel="noopener">Hyundai STARIA</a></div><div class="desc">Hyundai STARIA Trend 1.6 T-GDI 9 Sitzer - Shuttle Paket (Velbert)</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span></div></td><td class="r"><div class="big num">664 EUR</div><div class="sub-rate num">Rate 628 EUR</div><div class="bar" style="width:73.9%"><i class="base" style="width:94.7%"></i><i class="add" style="width:5.3%"></i></div></td><td class="r num">7.966 EUR</td><td class="cost">Überführung <b>1.700 EUR</b> · <span class="num">+35 EUR/Mon.</span></td><td class="num">48 Mon.<br><span class="desc">Privat</span></td><td class="r num">31.864 EUR</td></tr><tr><td class="rank num">12</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/volkswagen-t6_1_caravelle/13120817?adVariant=35642901" target="_blank" rel="noopener">Volkswagen T6.1 Caravelle</a></div><div class="desc">Volkswagen T6.1 Caravelle LR TDI DSG 3-3-3 LED SHZ NAVI</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span><span class="tag warn">Überführung k.&nbsp;A.</span></div></td><td class="r"><div class="big num">749 EUR*</div><div class="sub-rate num">Rate 749 EUR</div><div class="bar" style="width:83.4%"><i class="base" style="width:100.0%"></i><i class="add" style="width:0.0%"></i></div></td><td class="r num">8.988 EUR*</td><td class="cost">keine Angabe</td><td class="num">48 Mon.<br><span class="desc">Privat</span></td><td class="r num">35.952 EUR</td></tr><tr><td class="rank num">13</td><td><div class="car"><a href="https://www.leasingmarkt.de/leasing/pkw/opel-movano/9935591?adVariant=23831963" target="_blank" rel="noopener">Opel Movano</a></div><div class="desc">Opel Movano</div><div class="tags"><span class="tag">9 Sitze</span><span class="tag">Sofort</span><span class="tag warn">Überführung k.&nbsp;A.</span></div></td><td class="r"><div class="big num">899 EUR*</div><div class="sub-rate num">Rate 899 EUR</div><div class="bar" style="width:100.0%"><i class="base" style="width:100.0%"></i><i class="add" style="width:0.0%"></i></div></td><td class="r num">10.782 EUR*</td><td class="cost">keine Angabe</td><td class="num">60 Mon.<br><span class="desc">Gewerbe · netto 755 EUR</span></td><td class="r num">53.912 EUR</td></tr></tbody></table></div>
+<p class="note">
+<b>Pro Monat</b> = beworbene Rate + (Überführung + Zulassung + Zuzahlungen) ÷ Laufzeit.
+Nur so sind Angebote mit niedriger Rate und hoher Einmalzahlung fair vergleichbar.
+<b>Pro Jahr</b> = Pro Monat × 12; die Einmalkosten sind dabei über die gesamte Laufzeit
+verteilt, nicht dem ersten Jahr zugeschlagen. <b>Gesamt</b> ist die Summe über die volle
+Laufzeit — bei 48 Monaten naturgemäß niedriger als bei 60, Vergleichsmaßstab sind
+deshalb die Monatskosten.<br><b>*</b> Bei 4 Angeboten nennt der Händler <b>keine</b> Überführungskosten. Der Wert ist dann eine <b>Untergrenze</b>, keine Zusage — im Van-Segment liegen die Kosten sonst bei 1.200–2.600&nbsp;€. Nachfragen lohnt.<br>
+Alle Raten <b>brutto inkl. MwSt.</b>; Gewerbeangebote werden von den Händlern meist
+netto beworben, die Nettorate steht daneben. <b>Nur Gewerbekunden</b> heißt: als
+Privatperson nicht buchbar. Bernstein markierte Angaben sind <b>Auflagen</b>
+(z.&nbsp;B. Inzahlungnahme) — ohne deren Erfüllung gilt der Preis nicht.
+Nicht enthalten sind Anzahlung, Versicherung, Wartung, Reifen und Sprit.
+Angebote ändern sich täglich; verbindlich ist immer der Händler.
+</p>
+</div>

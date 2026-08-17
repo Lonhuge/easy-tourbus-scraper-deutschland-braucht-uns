@@ -128,9 +128,10 @@ def main() -> int:
     write_html(
         shown,
         args.html,
-        title="Leasing: %s" % label,
-        subtitle="%s Angebote von leasingmarkt.de, sortiert nach tatsächlichen "
-                 "Monatskosten inkl. Einmalkosten. Stand: %s" % (len(shown), timestamp()),
+        title="%s-Sitzer Leasingvergleich" % args.sitze,
+        subtitle="%s Angebote mit %s km/Jahr von leasingmarkt.de, sortiert nach den "
+                 "tatsächlichen Monatskosten statt nach der beworbenen Rate. Stand: %s"
+                 % (len(shown), "{:,}".format(args.km).replace(",", "."), timestamp()),
     )
     print("\nGeschrieben: %s und %s" % (args.csv, args.html))
     return 0
