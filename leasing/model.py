@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
+from datetime import date
 from typing import List, Optional
+
+CURRENT_YEAR = date.today().year
 
 # Reihenfolge der CSV-Spalten
 CSV_FIELDS = [
@@ -205,3 +208,58 @@ class Offer:
 
 def _round(value: Optional[float]) -> Optional[float]:
     return None if value is None else round(value, 2)
+
+
+USED_CSV_FIELDS = [
+    "monthly_loss", "price", "price_without_vat", "vat_reclaimable", "mileage",
+    "first_registration", "year", "age_years", "seats", "make", "model", "title",
+    "hp", "fuel", "city", "country", "seller_type", "source", "url",
+]
+
+
+@dataclass
+class UsedCar:
+    """Ein Gebrauchtwagenangebot."""
+
+    source: str
+    listing_id: str
+    url: str
+    make: str = ""
+    model: str = ""
+    title: str = ""
+    price: Optional[float] = None            # brutto
+    price_without_vat: Optional[float] = None
+    vat_reclaimable: bool = False
+    mileage: Optional[int] = None
+    first_registration: str = ""
+    year: Optional[int] = None
+    seats: Optional[int] = None
+    hp: Optional[int] = None
+    fuel: str = ""
+    city: str = ""
+    country: str = ""
+    seller_type: str = ""
+
+    @property
+    def age_years(self) -> Optional[float]:
+        """Alter in Jahren, gerechnet ab dem laufenden Jahr."""
+        if not self.year:
+            return None
+        return max(0.0, CURRENT_YEAR - self.year)
+
+    def monthly_loss(self, months: int, residual_pct: float) -> Optional[float]:
+        """Monatlicher Wertverlust ueber die Haltedauer.
+
+        Gleiche Rechnung wie beim Neuwagen, damit beide Kaufwege und das
+        Leasing auf derselben Groesse vergleichbar sind.
+        """
+        if self.price is None or not months:
+            return None
+        return (self.price - self.price * residual_pct) / months
+
+    def as_row(self, months: int, residual_pct: float) -> dict:
+        data = asdict(self)
+        data["age_years"] = self.age_years
+        data["monthly_loss"] = _round(self.monthly_loss(months, residual_pct))
+        data["vat_reclaimable"] = "ja" if self.vat_reclaimable else "nein"
+        return {key: data.get(key, "") for key in USED_CSV_FIELDS}

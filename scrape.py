@@ -19,8 +19,9 @@ from typing import List
 from leasing.http import Fetcher
 from leasing.model import Offer
 from leasing.report import (
-    limit_per_model, print_table, sort_offers, timestamp, write_csv, write_html)
-from leasing.sources import leasingmarkt
+    limit_per_model, print_table, sort_offers, timestamp, write_csv, write_html,
+    write_used_csv)
+from leasing.sources import carvago, leasingmarkt
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,6 +40,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top", type=int, default=20, help="Anzahl Zeilen in der Konsole")
     parser.add_argument("--pro-modell", type=int, default=0, metavar="N",
                         help="Je Modell hoechstens N Angebote zeigen (0 = alle)")
+    parser.add_argument("--ohne-gebrauchte", action="store_true",
+                        help="Gebrauchtwagensuche (carvago.com) überspringen")
     parser.add_argument("--haltedauer", type=int, default=60, metavar="MONATE",
                         help="Angenommene Haltedauer beim Kauf (Standard: 60)")
     parser.add_argument("--restwert", type=int, default=40, metavar="PROZENT",
@@ -121,6 +124,14 @@ def main() -> int:
             print("  %s Angebote ohne Angabe werden mit 0 EUR gerechnet und mit * markiert."
                   % len(missing))
 
+    used_cars = []
+    if not args.ohne_gebrauchte:
+        print("\nGebrauchtwagen suchen (carvago.com) ...")
+        used_cars = carvago.search(fetcher, seats=args.sitze)
+        print("  %s gebrauchte %s-Sitzer aus %s Modellreihen."
+              % (len(used_cars), args.sitze,
+                 len({(c.make, c.model) for c in used_cars})))
+
     # Die CSV behaelt immer alles; gefiltert wird nur, was angezeigt wird.
     shown = limit_per_model(offers, args.pro_modell)
     if args.pro_modell and len(shown) < len(offers):
@@ -160,7 +171,27 @@ def main() -> int:
                  % (len(shown), "{:,}".format(args.km).replace(",", "."), timestamp()),
         hold_months=args.haltedauer,
         residual_pct=args.restwert / 100.0,
+        used_cars=used_cars,
     )
+    if used_cars:
+        write_used_csv(used_cars, "gebrauchtwagen.csv",
+                       args.haltedauer, args.restwert / 100.0)
+        residual = args.restwert / 100.0
+        print("\nGEBRAUCHT — echte Gebrauchtwagen von carvago.com")
+        print("-" * 112)
+        print("%-3s %-13s %-14s %-12s %-11s %s" % (
+            "#", "KAUFPREIS", "WERTVERL./MON", "KM-STAND", "ERSTZUL.", "FAHRZEUG"))
+        for index, car in enumerate(sorted(used_cars, key=lambda c: c.price or 1e9)[: args.top], 1):
+            print("%-3s %-13s %-14s %-12s %-11s %s" % (
+                index,
+                "%.0f EUR" % (car.price or 0),
+                "%.0f EUR" % (car.monthly_loss(args.haltedauer, residual) or 0),
+                "{:,}".format(car.mileage).replace(",", ".") if car.mileage is not None else "-",
+                car.first_registration or "-",
+                ("%s %s" % (car.make, car.model)).strip()[:34]
+                + ("" if car.country == "DE" else "  [%s]" % car.country),
+            ))
+        print("-" * 112)
     print("\nGeschrieben: %s und %s" % (args.csv, args.html))
     return 0
 

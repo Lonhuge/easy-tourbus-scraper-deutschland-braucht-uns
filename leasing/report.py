@@ -7,7 +7,7 @@ import html
 from datetime import datetime
 from typing import List, Optional
 
-from .model import CSV_FIELDS, Offer
+from .model import CSV_FIELDS, USED_CSV_FIELDS, Offer, UsedCar
 
 
 def _euro(value: Optional[float], digits: int = 0) -> str:
@@ -80,6 +80,14 @@ def print_table(offers: List[Offer], limit: int = 20) -> None:
         print("* Bei %s Angebot(en) nennt der Händler keine Überführungskosten — der Wert" % incomplete)
         print("  ist eine Untergrenze. Mit --schaetze-ueberfuehrung wird der Median angesetzt.")
     print("Alle Raten brutto (inkl. MwSt.); Nettoraten stehen in der CSV.")
+
+
+def write_used_csv(cars: List[UsedCar], path: str, months: int, residual_pct: float) -> None:
+    with open(path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=USED_CSV_FIELDS)
+        writer.writeheader()
+        for car in sorted(cars, key=lambda c: c.price or float("inf")):
+            writer.writerow(car.as_row(months, residual_pct))
 
 
 def write_csv(offers: List[Offer], path: str) -> None:
@@ -288,8 +296,51 @@ def _buy_rows(ranked: List[Offer], months: int, residual_pct: float) -> str:
     return "".join(rows)
 
 
+def _used_rows(cars: List["UsedCar"], months: int, residual_pct: float) -> str:
+    ranked = sorted(cars, key=lambda c: c.price or float("inf"))
+    scale = max((c.monthly_loss(months, residual_pct) or 0) for c in ranked) if ranked else 0
+    rows = []
+    for index, car in enumerate(ranked, 1):
+        tags = []
+        if car.seats:
+            tags.append('<span class="tag">%s Sitze</span>' % car.seats)
+        if car.fuel:
+            tags.append('<span class="tag">%s</span>' % html.escape(car.fuel))
+        if car.vat_reclaimable:
+            tags.append('<span class="tag">MwSt. ausweisbar</span>')
+        if car.country and car.country != "DE":
+            tags.append('<span class="tag warn">Import %s</span>' % html.escape(car.country))
+
+        km = ("{:,}".format(car.mileage).replace(",", ".") + " km") if car.mileage is not None else "-"
+        age = ("%.0f J." % car.age_years) if car.age_years is not None else "-"
+        place = ", ".join(p for p in (car.city, car.country) if p)
+
+        rows.append(
+            '<tr><td class="rank num">%s</td>'
+            '<td><div class="car"><a href="%s" target="_blank" rel="noopener">%s</a></div>'
+            '<div class="desc">%s</div><div class="tags">%s</div></td>'
+            '<td class="r"><div class="big num">%s</div>%s</td>'
+            '<td class="r num">%s</td>'
+            '<td class="r num">%s<div class="desc">EZ %s · %s</div></td>'
+            '<td class="num">%s PS</td>'
+            '<td class="desc">%s</td></tr>'
+            % (index,
+               html.escape(car.url),
+               html.escape(("%s %s" % (car.make, car.model)).strip()),
+               html.escape(car.title[:90]),
+               "".join(tags),
+               _euro(car.price),
+               _bar(car.monthly_loss(months, residual_pct), scale, 100.0),
+               _euro(car.monthly_loss(months, residual_pct)),
+               km, html.escape(car.first_registration or "-"), age,
+               car.hp or "-",
+               html.escape(place) or "-"))
+    return "".join(rows)
+
+
 def write_html(offers: List[Offer], path: str, title: str, subtitle: str,
-               hold_months: int = 60, residual_pct: float = 0.40) -> None:
+               hold_months: int = 60, residual_pct: float = 0.40,
+               used_cars: Optional[List["UsedCar"]] = None) -> None:
     ranked = sort_offers(offers)
     cheapest = ranked[0].effective_monthly if ranked else None
     private_ok = sum(1 for o in ranked if o.available_to_private)
@@ -299,6 +350,15 @@ def write_html(offers: List[Offer], path: str, title: str, subtitle: str,
     buy_cheapest = min((o.purchase_monthly(hold_months, residual_pct) or float("inf"))
                        for o in priced) if priced else None
     buy_price_min = min((o.purchase_price or 0) for o in priced) if priced else None
+
+    used = list(used_cars or [])
+    used_price_min = min((c.price or 0) for c in used) if used else None
+    used_loss_min = (min((c.monthly_loss(hold_months, residual_pct) or float("inf"))
+                         for c in used) if used else None)
+    if used_loss_min == float("inf"):
+        used_loss_min = None
+    seats_label = str(used[0].seats) if used and used[0].seats else "9"
+    used_models = len({(c.make, c.model) for c in used})
 
     footnote = ""
     if incomplete:
@@ -319,8 +379,10 @@ def write_html(offers: List[Offer], path: str, title: str, subtitle: str,
 <div class="switch" role="tablist" aria-label="Leasing oder Kauf">
   <button role="tab" id="tab-lease" aria-controls="panel-lease" aria-selected="true"
    class="on" data-panel="lease">Leasing</button>
+  <button role="tab" id="tab-used" aria-controls="panel-used" aria-selected="false"
+   data-panel="used">Gebraucht kaufen</button>
   <button role="tab" id="tab-buy" aria-controls="panel-buy" aria-selected="false"
-   data-panel="buy">Kaufen</button>
+   data-panel="buy">Neu kaufen</button>
 </div>
 
 <section id="panel-lease" role="tabpanel" aria-labelledby="tab-lease">
@@ -350,6 +412,39 @@ Alle Raten <b>brutto inkl. MwSt.</b>; Gewerbeangebote werden meist netto beworbe
 Nettorate steht daneben. <b>Nur Gewerbekunden</b> heißt: als Privatperson nicht buchbar.
 Bernstein markierte Angaben sind <b>Auflagen</b> (z.&nbsp;B. Inzahlungnahme).
 Nicht enthalten sind Versicherung, Wartung, Reifen und Sprit.
+</p>
+</section>
+
+<section id="panel-used" role="tabpanel" aria-labelledby="tab-used" hidden>
+<div class="stats">
+  <div class="stat"><b>%s</b><span>Gebrauchte %s-Sitzer</span></div>
+  <div class="stat"><b>%s</b><span>ab Kaufpreis</span></div>
+  <div class="stat"><b>%s</b><span>ab Wertverlust / Monat</span></div>
+  <div class="stat"><b>%s</b><span>davon in Deutschland</span></div>
+</div>
+<div class="legend">
+  <span class="key"><i style="background:var(--bar-base)"></i> Wertverlust pro Monat</span>
+  <span>sortiert nach Kaufpreis · Quelle carvago.com</span>
+</div>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Fahrzeug</th><th class="r">Kaufpreis</th>
+<th class="r">Wertverlust/Mon.</th><th class="r">Laufleistung</th>
+<th>Leistung</th><th>Standort</th></tr></thead>
+<tbody>%s</tbody></table></div>
+<p class="note">
+<b>Echte Gebrauchtwagen</b> von carvago.com, einem europaweiten Marktplatz.
+Die Sitzanzahl ist je Fahrzeug hinterlegt und wurde auf exakt %s geprüft.<br>
+<b>Wichtige Einschränkung:</b> Carvagos Modellseiten geben pro Modell nur die
+<b>ersten 20 Fahrzeuge</b> heraus und nehmen keine Filter- oder Seitenparameter an.
+Das hier ist deshalb eine <b>Stichprobe über %s Van-Modelle</b>, keine vollständige
+Marktübersicht — es gibt mit Sicherheit günstigere Angebote, die diese Liste nicht zeigt.
+Sie taugt zur Orientierung über Preisniveau und Fahrzeugalter, nicht als Beweis für
+das beste Angebot.<br>
+Fahrzeuge außerhalb Deutschlands sind als <b>Import</b> markiert: dort kommen
+Überführung, Zulassung und ggf. Umsatzsteuerfragen hinzu. <b>MwSt. ausweisbar</b>
+ist für Gewerbetreibende relevant. Der Wertverlust nutzt dieselbe Annahme wie die
+anderen Ansichten (%s&nbsp;%% Restwert nach %s Monaten) — bei einem gebrauchten
+Fahrzeug ist das besonders grob, weil der stärkste Wertverlust bereits hinter ihm liegt.
 </p>
 </section>
 
@@ -393,12 +488,15 @@ tatsächliche Wiederverkaufswert hängt an Laufleistung, Zustand und Marktlage. 
       t.classList.toggle('on',on);
       t.setAttribute('aria-selected',on?'true':'false');
     });
-    document.getElementById('panel-lease').hidden=(name!=='lease');
-    document.getElementById('panel-buy').hidden=(name!=='buy');
+    tabs.forEach(function(t){
+      var p=document.getElementById('panel-'+t.dataset.panel);
+      if(p)p.hidden=(t.dataset.panel!==name);
+    });
     try{location.hash=name}catch(e){}
   }
   tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.panel)})});
-  if(location.hash==='#buy')show('buy');
+  var h=(location.hash||'').replace('#','');
+  if(h==='buy'||h==='used')show(h);
 })();
 </script>""" % (
         html.escape(title), _CSS, html.escape(title), html.escape(subtitle),
@@ -406,6 +504,15 @@ tatsächliche Wiederverkaufswert hängt an Laufleistung, Zustand und Marktlage. 
         _euro(cheapest * 12 if cheapest is not None else None), private_ok,
         _leasing_rows(ranked) or '<tr><td colspan="7">Keine Angebote gefunden.</td></tr>',
         footnote,
+        # --- Gebrauchtwagen ---
+        len(used), seats_label,
+        _euro(used_price_min), _euro(used_loss_min),
+        sum(1 for c in used if c.country == "DE"),
+        _used_rows(used, hold_months, residual_pct)
+        or '<tr><td colspan="7">Keine Gebrauchtwagen gefunden.</td></tr>',
+        seats_label, used_models,
+        "%.0f" % (residual_pct * 100), hold_months,
+        # --- Neuwagen ---
         len(priced), _euro(buy_price_min),
         _euro(buy_cheapest if buy_cheapest not in (None, float("inf")) else None),
         hold_months,
