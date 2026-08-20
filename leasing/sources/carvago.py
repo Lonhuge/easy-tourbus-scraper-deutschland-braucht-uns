@@ -118,6 +118,7 @@ def _to_used_car(car: Dict) -> Optional[UsedCar]:
         city=car.get("location_city") or "",
         country=location.get("iso_code") or "",
         seller_type=_label((seller.get("type") or {})),
+        published_at=str(car.get("created_at") or car.get("first_crawl") or "")[:10],
     )
 
 

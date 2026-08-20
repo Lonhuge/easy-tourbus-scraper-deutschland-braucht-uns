@@ -10,6 +10,9 @@ CURRENT_YEAR = date.today().year
 
 # Reihenfolge der CSV-Spalten
 CSV_FIELDS = [
+    "is_new",
+    "first_seen",
+    "published_at",
     "effective_monthly",
     "yearly_cost",
     "monthly_rate",
@@ -90,6 +93,13 @@ class Offer:
     special_conditions: List[str] = field(default_factory=list)
     detail_fetched: bool = False
 
+    # Neuheit: published_at/online_label kommen vom Portal, first_seen/is_new
+    # aus unserem eigenen Gedaechtnis (seen.json).
+    published_at: str = ""
+    online_label: str = ""
+    first_seen: str = ""
+    is_new: bool = False
+
     @property
     def upfront_costs(self) -> float:
         """Summe der *bekannten* Einmalkosten neben der Monatsrate."""
@@ -129,9 +139,6 @@ class Offer:
             return None
         return total / self.duration
 
-    # Das Portal kennt drei Zielgruppen: "Nur Privatkunden", "Nur Gewerbekunden"
-    # und "Privat- & Gewerbekunden". Auf blosses "gewerbe" zu pruefen wuerde die
-    # gemischte Gruppe faelschlich als reines Gewerbeangebot einstufen.
     @property
     def yearly_cost(self) -> Optional[float]:
         """Kosten pro Jahr inkl. anteiliger Einmalkosten.
@@ -172,6 +179,9 @@ class Offer:
         residual = self.purchase_price * residual_pct
         return (self.purchase_price + self.upfront_costs - residual) / months
 
+    # Das Portal kennt drei Zielgruppen: "Nur Privatkunden", "Nur Gewerbekunden"
+    # und "Privat- & Gewerbekunden". Auf blosses "gewerbe" zu pruefen wuerde die
+    # gemischte Gruppe faelschlich als reines Gewerbeangebot einstufen.
     @property
     def is_commercial_only(self) -> bool:
         return "nur gewerbe" in self.target_group.lower()
@@ -199,6 +209,7 @@ class Offer:
         data["yearly_cost"] = _round(self.yearly_cost)
         data["total_cost"] = _round(self.total_cost)
         data["costs_complete"] = "ja" if self.costs_complete else "nein"
+        data["is_new"] = "ja" if self.is_new else "nein"
         data["discount"] = _round(self.discount)
         data["discount_pct"] = _round(self.discount_pct)
         data["special_conditions"] = " | ".join(self.special_conditions)
@@ -211,6 +222,7 @@ def _round(value: Optional[float]) -> Optional[float]:
 
 
 USED_CSV_FIELDS = [
+    "is_new", "first_seen", "published_at",
     "monthly_loss", "price", "price_without_vat", "vat_reclaimable", "mileage",
     "first_registration", "year", "age_years", "seats", "make", "model", "title",
     "hp", "fuel", "city", "country", "seller_type", "source", "url",
@@ -239,6 +251,9 @@ class UsedCar:
     city: str = ""
     country: str = ""
     seller_type: str = ""
+    published_at: str = ""
+    first_seen: str = ""
+    is_new: bool = False
 
     @property
     def age_years(self) -> Optional[float]:
@@ -262,4 +277,5 @@ class UsedCar:
         data["age_years"] = self.age_years
         data["monthly_loss"] = _round(self.monthly_loss(months, residual_pct))
         data["vat_reclaimable"] = "ja" if self.vat_reclaimable else "nein"
+        data["is_new"] = "ja" if self.is_new else "nein"
         return {key: data.get(key, "") for key in USED_CSV_FIELDS}

@@ -87,6 +87,9 @@ def _to_offer(listing: Dict, variant: Dict) -> Offer:
         duration=variant.get("duration"),
         included_mileage=variant.get("includedMileage"),
         leasing_factor=variant.get("leasingFactor"),
+        # Portalseitige Neuheit: wann der Deal online ging bzw. dessen Label.
+        published_at=(listing.get("dealPublishedAt") or "")[:10],
+        online_label=listing.get("timeOnlineLabel") or "",
     )
 
 

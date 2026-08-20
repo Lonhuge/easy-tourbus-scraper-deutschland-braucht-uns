@@ -17,11 +17,18 @@ def _euro(value: Optional[float], digits: int = 0) -> str:
     return text.replace(",", "X").replace(".", ",").replace("X", ".") + " EUR"
 
 
-def sort_offers(offers: List[Offer]) -> List[Offer]:
-    """Sortiert nach effektiver Monatsrate; Angebote ohne Rate ans Ende."""
+def sort_offers(offers: List[Offer], new_first: bool = True) -> List[Offer]:
+    """Neuzugaenge zuerst, darin nach effektiver Monatsrate.
+
+    `new_first` laesst sich abschalten, wenn eine reine Preisliste gebraucht wird.
+    """
     return sorted(
         offers,
-        key=lambda o: (o.effective_monthly is None, o.effective_monthly or float("inf")),
+        key=lambda o: (
+            not (o.is_new and new_first),
+            o.effective_monthly is None,
+            o.effective_monthly or float("inf"),
+        ),
     )
 
 
@@ -51,15 +58,16 @@ def print_table(offers: List[Offer], limit: int = 20) -> None:
 
     ranked = sort_offers(offers)[:limit]
 
-    print("\n%-3s %-11s %-12s %-9s %-9s %-25s %-4s %-8s %s" % (
+    print("\n%-4s %-11s %-12s %-9s %-9s %-25s %-4s %-8s %s" % (
         "#", "PRO MONAT", "PRO JAHR", "RATE", "+EINMAL", "FAHRZEUG", "MON", "GRUPPE", "GESAMT"))
     print("-" * 112)
 
     for index, offer in enumerate(ranked, 1):
-        name = ("%s %s" % (offer.make, offer.model)).strip()[:25]
+        name = ("%s %s" % (offer.make, offer.model)).strip()
+        name = ("NEU " + name[:21]) if offer.is_new else name[:25]
         # Sternchen: Ueberfuehrung nicht angegeben -> Wert ist eine Untergrenze
         marker = "" if offer.costs_complete else "*"
-        print("%-3s %-11s %-12s %-9s %-9s %-25s %-4s %-8s %s" % (
+        print("%-4s %-11s %-12s %-9s %-9s %-25s %-4s %-8s %s" % (
             index,
             _euro(offer.effective_monthly) + marker,
             _euro(offer.yearly_cost) + marker,
@@ -86,7 +94,7 @@ def write_used_csv(cars: List[UsedCar], path: str, months: int, residual_pct: fl
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=USED_CSV_FIELDS)
         writer.writeheader()
-        for car in sorted(cars, key=lambda c: c.price or float("inf")):
+        for car in sorted(cars, key=lambda c: (not c.is_new, c.price or float("inf"))):
             writer.writerow(car.as_row(months, residual_pct))
 
 
@@ -103,17 +111,17 @@ _CSS = """
 :root{
  --bg:#f4f6f9; --surface:#fff; --surface-2:#eef1f6; --ink:#111820; --muted:#5c6878;
  --line:#dde3ec; --accent:#0b4f9e; --accent-soft:#dbe7f6; --warn:#a86a00;
- --warn-soft:#f7ecd8; --bar-base:#b9c6d8;
+ --warn-soft:#f7ecd8; --bar-base:#b9c6d8; --on-accent:#fff;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
  --bg:#0d1218; --surface:#151d27; --surface-2:#1c2530; --ink:#e6ecf4; --muted:#8d9aab;
  --line:#26313e; --accent:#69a9f5; --accent-soft:#16283f; --warn:#e0a63a;
- --warn-soft:#33280f; --bar-base:#33404f;
+ --warn-soft:#33280f; --bar-base:#33404f; --on-accent:#0d1218;
 }}
 :root[data-theme=dark]{
  --bg:#0d1218; --surface:#151d27; --surface-2:#1c2530; --ink:#e6ecf4; --muted:#8d9aab;
  --line:#26313e; --accent:#69a9f5; --accent-soft:#16283f; --warn:#e0a63a;
- --warn-soft:#33280f; --bar-base:#33404f;
+ --warn-soft:#33280f; --bar-base:#33404f; --on-accent:#0d1218;
 }
 *{box-sizing:border-box}
 body{margin:0;padding:2.4rem 1.2rem 4rem;background:var(--bg);color:var(--ink);
@@ -157,6 +165,9 @@ tbody tr:hover{background:var(--surface-2)}
 .tag{font-size:.69rem;padding:.14rem .45rem;border-radius:999px;
  background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .tag.warn{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.tag.new{background:var(--accent);color:var(--on-accent);font-weight:700;
+ letter-spacing:.04em;padding:.14rem .5rem}
+tr:has(.tag.new){background:var(--accent-soft)}
 .cost{font-size:.79rem;color:var(--muted);line-height:1.5}
 .cost b{color:var(--ink);font-weight:600}
 /* Umschalter Leasing/Kauf */
@@ -195,6 +206,8 @@ def _bar(value: Optional[float], scale: float, base_share: float = 100.0) -> str
 
 def _tags(offer: Offer) -> str:
     tags = []
+    if offer.is_new:
+        tags.append('<span class="tag new">NEU</span>')
     if offer.seats:
         tags.append('<span class="tag">%s Sitze</span>' % offer.seats)
     if offer.availability:
@@ -265,7 +278,8 @@ def _leasing_rows(ranked: List[Offer]) -> str:
 
 def _buy_rows(ranked: List[Offer], months: int, residual_pct: float) -> str:
     priced = [o for o in ranked if o.purchase_price]
-    priced.sort(key=lambda o: o.purchase_monthly(months, residual_pct) or float("inf"))
+    priced.sort(key=lambda o: (not o.is_new,
+                               o.purchase_monthly(months, residual_pct) or float("inf")))
     scale = max((o.purchase_monthly(months, residual_pct) or 0) for o in priced) if priced else 0
     rows = []
     for index, offer in enumerate(priced, 1):
@@ -297,11 +311,13 @@ def _buy_rows(ranked: List[Offer], months: int, residual_pct: float) -> str:
 
 
 def _used_rows(cars: List["UsedCar"], months: int, residual_pct: float) -> str:
-    ranked = sorted(cars, key=lambda c: c.price or float("inf"))
+    ranked = sorted(cars, key=lambda c: (not c.is_new, c.price or float("inf")))
     scale = max((c.monthly_loss(months, residual_pct) or 0) for c in ranked) if ranked else 0
     rows = []
     for index, car in enumerate(ranked, 1):
         tags = []
+        if car.is_new:
+            tags.append('<span class="tag new">NEU</span>')
         if car.seats:
             tags.append('<span class="tag">%s Sitze</span>' % car.seats)
         if car.fuel:

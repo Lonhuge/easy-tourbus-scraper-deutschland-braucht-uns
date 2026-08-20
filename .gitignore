@@ -3,3 +3,5 @@ __pycache__/
 *.csv
 *.html
 !docs/index.html
+# seen.json bleibt versioniert - ohne das Gedaechtnis gibt es keine Neuzugaenge
+!seen.json

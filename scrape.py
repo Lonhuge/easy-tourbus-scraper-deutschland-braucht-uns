@@ -18,6 +18,7 @@ from typing import List
 
 from leasing.http import Fetcher
 from leasing.model import Offer
+from leasing.seen import Seen
 from leasing.report import (
     limit_per_model, print_table, sort_offers, timestamp, write_csv, write_html,
     write_used_csv)
@@ -40,6 +41,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top", type=int, default=20, help="Anzahl Zeilen in der Konsole")
     parser.add_argument("--pro-modell", type=int, default=0, metavar="N",
                         help="Je Modell hoechstens N Angebote zeigen (0 = alle)")
+    parser.add_argument("--seen", default="seen.json",
+                        help="Datei mit den bereits gesehenen Angeboten")
+    parser.add_argument("--alles-neu", action="store_true",
+                        help="Gedächtnis ignorieren und alles als neu behandeln")
     parser.add_argument("--ohne-gebrauchte", action="store_true",
                         help="Gebrauchtwagensuche (carvago.com) überspringen")
     parser.add_argument("--haltedauer", type=int, default=60, metavar="MONATE",
@@ -132,6 +137,27 @@ def main() -> int:
               % (len(used_cars), args.sitze,
                  len({(c.make, c.model) for c in used_cars})))
 
+    seen = Seen(args.seen)
+    baseline = seen.is_first_run and not args.alles_neu
+    fresh = 0
+    for item in list(offers) + list(used_cars):
+        # Portalseitiges Datum als Ersteintrag nutzen, wenn vorhanden - sonst heute.
+        was_unknown = seen.mark(item.source, item.listing_id, item.published_at or None)
+        item.first_seen = seen.first_seen(item.source, item.listing_id) or ""
+        # Beim allerersten Lauf waere sonst der komplette Bestand "neu".
+        item.is_new = was_unknown and not baseline
+        if item.is_new:
+            fresh += 1
+    seen.save()
+
+    if baseline:
+        print("\nErster Lauf mit Gedächtnis: %s Angebote als Ausgangsbestand vermerkt."
+              % len(seen.entries))
+        print("  Ab dem nächsten Update erscheinen Neuzugänge oben und als NEU markiert.")
+    else:
+        print("\n%s Neuzugänge seit dem letzten Lauf (%s)."
+              % (fresh, seen.last_run or "unbekannt"))
+
     # Die CSV behaelt immer alles; gefiltert wird nur, was angezeigt wird.
     shown = limit_per_model(offers, args.pro_modell)
     if args.pro_modell and len(shown) < len(offers):
@@ -181,14 +207,16 @@ def main() -> int:
         print("-" * 112)
         print("%-3s %-13s %-14s %-12s %-11s %s" % (
             "#", "KAUFPREIS", "WERTVERL./MON", "KM-STAND", "ERSTZUL.", "FAHRZEUG"))
-        for index, car in enumerate(sorted(used_cars, key=lambda c: c.price or 1e9)[: args.top], 1):
+        ordered = sorted(used_cars, key=lambda c: (not c.is_new, c.price or 1e9))
+        for index, car in enumerate(ordered[: args.top], 1):
             print("%-3s %-13s %-14s %-12s %-11s %s" % (
                 index,
                 "%.0f EUR" % (car.price or 0),
                 "%.0f EUR" % (car.monthly_loss(args.haltedauer, residual) or 0),
                 "{:,}".format(car.mileage).replace(",", ".") if car.mileage is not None else "-",
                 car.first_registration or "-",
-                ("%s %s" % (car.make, car.model)).strip()[:34]
+                (("NEU " if car.is_new else "")
+                 + ("%s %s" % (car.make, car.model)).strip()[:30])
                 + ("" if car.country == "DE" else "  [%s]" % car.country),
             ))
         print("-" * 112)
